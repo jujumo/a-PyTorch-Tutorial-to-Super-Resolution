@@ -5,9 +5,12 @@ from torch import nn
 from models import SRResNet
 from datasets import SRDataset
 from utils import *
+import os.path as path
+
 
 # Data parameters
 data_folder = './'  # folder with JSON data files
+checkpoint_filepath = './checkpoint_srresnet.pth.tar'
 crop_size = 96  # crop size of target HR images
 scaling_factor = 4  # the scaling factor for the generator; the input LR images will be downsampled from the target HR images by this factor
 
@@ -37,20 +40,30 @@ def main():
     Training.
     """
     global start_epoch, epoch, checkpoint
-
-    # Initialize model or load checkpoint
-    if checkpoint is None:
-        model = SRResNet(large_kernel_size=large_kernel_size, small_kernel_size=small_kernel_size,
-                         n_channels=n_channels, n_blocks=n_blocks, scaling_factor=scaling_factor)
-        # Initialize the optimizer
-        optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()),
-                                     lr=lr)
-
-    else:
-        checkpoint = torch.load(checkpoint)
+    print(f'running on {device}.')
+    # Initialize model
+    model = SRResNet(large_kernel_size=large_kernel_size, small_kernel_size=small_kernel_size,
+                     n_channels=n_channels, n_blocks=n_blocks, scaling_factor=scaling_factor)
+    # Initialize the optimizer
+    optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()),
+                                 lr=lr)
+    model.to(device)
+    start_epoch = 0
+    # load previously saved checkpoint if any
+    if path.isfile(checkpoint_filepath):
+        print(f'loading checkpoint "{checkpoint_filepath}"')
+        checkpoint = torch.load(checkpoint_filepath, map_location=device)
         start_epoch = checkpoint['epoch'] + 1
-        model = checkpoint['model']
-        optimizer = checkpoint['optimizer']
+
+        # load states
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        # IMPORTANT: move optimizer internal tensors to same device
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
+
 
     # Move to default device
     model = model.to(device)
@@ -79,10 +92,11 @@ def main():
               epoch=epoch)
 
         # Save checkpoint
-        torch.save({'epoch': epoch,
-                    'model': model,
-                    'optimizer': optimizer},
-                   'checkpoint_srresnet.pth.tar')
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+        }, checkpoint_filepath)
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -139,12 +153,12 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # Print status
         if i % print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}]----'
-                  'Batch Time {batch_time.val:.3f} ({batch_time.avg:.3f})----'
-                  'Data Time {data_time.val:.3f} ({data_time.avg:.3f})----'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})'.format(epoch, i, len(train_loader),
-                                                                    batch_time=batch_time,
-                                                                    data_time=data_time, loss=losses))
+            print(
+                f'Epoch: [{epoch}][{i:04}/{len(train_loader)}]----'
+                f'Batch Time {batch_time.val:5.3f} ({batch_time.avg:5.3f})----'
+                f'Data Time {data_time.val:5.3f} ({data_time.avg:5.3f})----'
+                f'Loss {losses.val:2.4f} ({losses.avg:2.4f})'
+            )
     del lr_imgs, hr_imgs, sr_imgs  # free some memory since their histories may be stored
 
 
