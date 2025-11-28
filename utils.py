@@ -28,10 +28,9 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
     :param output_folder: save data lists here
     """
     print("\nCreating data lists... this may take some time.\n")
-    train_images = list()
     with open(os.path.join(output_folder, 'train_images.json'), 'w') as j:
         j.write('[\n')  # Start of list
-        first = True
+        nb_train_images = 0
         try:
             for train_folder in train_folders:
                 file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(train_folder) for fn in fs)
@@ -39,28 +38,36 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
                 for img_path in file_list:
                     img = Image.open(img_path, mode='r')
                     if img.width >= min_size and img.height >= min_size:
-                        if not first:
+                        if nb_train_images != 0:
                             j.write(',\n')
                         json.dump(img_path, j)
-                        first = False
+                        nb_train_images += 1
         except KeyboardInterrupt:
             print('stopped')
         finally:
             j.write('\n]\n')
-    print("There are %d images in the training data.\n" % len(train_images))
+    print(f"There are {nb_train_images} images in the training data.\n")
 
     for test_folder in test_folders:
-        test_images = list()
-        test_name = test_folder.split("/")[-1]
-        file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(test_folder) for fn in fs)
-        file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
-        for img_path in file_list:
-            img = Image.open(img_path, mode='r')
-            if img.width >= min_size and img.height >= min_size:
-                test_images.append(img_path)
-        print("There are %d images in the %s test data.\n" % (len(test_images), test_name))
         with open(os.path.join(output_folder, test_name + '_test_images.json'), 'w') as j:
-            json.dump(test_images, j)
+            j.write('[\n')  # Start of list
+            nb_test_images = 0
+            try:
+                test_name = test_folder.split("/")[-1]
+                file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(test_folder) for fn in fs)
+                file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
+                for img_path in file_list:
+                    img = Image.open(img_path, mode='r')
+                    if img.width >= min_size and img.height >= min_size:
+                        if nb_train_images != 0:
+                            j.write(',\n')
+                        json.dump(img_path, j)
+                        nb_test_images += 1
+                print(f"There are {nb_test_images} images in the {test_name} test data.\n")
+            except KeyboardInterrupt:
+                print('stopped')
+            finally:
+                j.write('\n]\n')
 
     print("JSONS containing lists of Train and Test images have been saved to %s\n" % output_folder)
 
