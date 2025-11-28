@@ -29,16 +29,25 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
     """
     print("\nCreating data lists... this may take some time.\n")
     train_images = list()
-    for train_folder in train_folders:
-        file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(train_folder) for fn in fs)
-        file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
-        for img_path in file_list:
-            img = Image.open(img_path, mode='r')
-            if img.width >= min_size and img.height >= min_size:
-                train_images.append(img_path)
-    print("There are %d images in the training data.\n" % len(train_images))
     with open(os.path.join(output_folder, 'train_images.json'), 'w') as j:
-        json.dump(train_images, j)
+        j.write('[\n')  # Start of list
+        first = True
+        try:
+            for train_folder in train_folders:
+                file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(train_folder) for fn in fs)
+                file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
+                for img_path in file_list:
+                    img = Image.open(img_path, mode='r')
+                    if img.width >= min_size and img.height >= min_size:
+                        if not first:
+                            j.write(',\n')
+                        json.dump(img_path, j)
+                        first = False
+        except KeyboardInterrupt:
+            print('stopped')
+        finally:
+            j.write('\n]\n')
+    print("There are %d images in the training data.\n" % len(train_images))
 
     for test_folder in test_folders:
         test_images = list()
