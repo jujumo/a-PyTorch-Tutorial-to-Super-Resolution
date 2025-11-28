@@ -15,6 +15,8 @@ imagenet_std = torch.FloatTensor([0.229, 0.224, 0.225]).unsqueeze(1).unsqueeze(2
 imagenet_mean_cuda = torch.FloatTensor([0.485, 0.456, 0.406]).to(device).unsqueeze(0).unsqueeze(2).unsqueeze(3)
 imagenet_std_cuda = torch.FloatTensor([0.229, 0.224, 0.225]).to(device).unsqueeze(0).unsqueeze(2).unsqueeze(3)
 
+image_file_extensions = ['.jpg', '.jpeg', '.png']
+
 
 def create_data_lists(train_folders, test_folders, min_size, output_folder):
     """
@@ -27,9 +29,10 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
     """
     print("\nCreating data lists... this may take some time.\n")
     train_images = list()
-    for d in train_folders:
-        for i in os.listdir(d):
-            img_path = os.path.join(d, i)
+    for train_folder in train_folders:
+        file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(train_folder) for fn in fs)
+        file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
+        for img_path in file_list:
             img = Image.open(img_path, mode='r')
             if img.width >= min_size and img.height >= min_size:
                 train_images.append(img_path)
@@ -37,11 +40,12 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
     with open(os.path.join(output_folder, 'train_images.json'), 'w') as j:
         json.dump(train_images, j)
 
-    for d in test_folders:
+    for test_folder in test_folders:
         test_images = list()
-        test_name = d.split("/")[-1]
-        for i in os.listdir(d):
-            img_path = os.path.join(d, i)
+        test_name = test_folder.split("/")[-1]
+        file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(test_folder) for fn in fs)
+        file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
+        for img_path in file_list:
             img = Image.open(img_path, mode='r')
             if img.width >= min_size and img.height >= min_size:
                 test_images.append(img_path)
