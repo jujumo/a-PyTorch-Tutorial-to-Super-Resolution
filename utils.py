@@ -33,15 +33,20 @@ def create_data_lists(train_folders, test_folders, min_size, output_folder):
         nb_train_images = 0
         try:
             for train_folder in train_folders:
-                file_list = (os.path.join(dp, fn) for dp, _, fs in os.walk(train_folder) for fn in fs)
+                file_list = (dp + '/' + fn for dp, _, fs in os.walk(train_folder) for fn in fs)
                 file_list = (fp for fp in file_list if os.path.splitext(fp)[1].lower() in image_file_extensions)
                 for img_path in file_list:
-                    img = Image.open(img_path, mode='r')
-                    if img.width >= min_size and img.height >= min_size:
-                        if nb_train_images != 0:
-                            j.write(',\n')
-                        json.dump(img_path, j)
-                        nb_train_images += 1
+                    try:
+                        img = Image.open(img_path, mode='r')
+                        if img.width >= min_size and img.height >= min_size:
+                            if nb_train_images != 0:
+                                j.write(',\n')
+                            # json.dump(img_path, j)
+                            j.write(f'"{img_path}"')
+                            nb_train_images += 1
+                    except Exception:
+                        print('skip ')
+                        continue
         except KeyboardInterrupt:
             print('stopped')
         finally:

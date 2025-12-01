@@ -64,12 +64,15 @@ class SRDataset(Dataset):
         :return: the 'i'th pair LR and HR images to be fed into the model
         """
         # Read image
-        img = Image.open(self.images[i], mode='r')
-        img = img.convert('RGB')
-        if img.width <= 96 or img.height <= 96:
-            print(self.images[i], img.width, img.height)
-        lr_img, hr_img = self.transform(img)
-
+        try:
+            img = Image.open(self.images[i], mode='r')
+            img = img.convert('RGB')
+            if img.width <= 96 or img.height <= 96:
+                print(self.images[i], img.width, img.height)
+            lr_img, hr_img = self.transform(img)
+        except OSError as e:
+            print(f'ERROR on {self.images[i]} ({i})')
+            raise e
         return lr_img, hr_img
 
     def __len__(self):
