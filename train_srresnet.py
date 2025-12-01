@@ -7,7 +7,6 @@ from datasets import SRDataset
 from utils import *
 import os.path as path
 
-
 # Data parameters
 data_folder = './'  # folder with JSON data files
 checkpoint_filepath = './checkpoint_srresnet.pth.tar'
@@ -64,7 +63,6 @@ def main():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(device)
 
-
     # Move to default device
     model = model.to(device)
     criterion = nn.MSELoss().to(device)
@@ -85,11 +83,13 @@ def main():
     # Epochs
     for epoch in range(start_epoch, epochs):
         # One epoch's training
-        train(train_loader=train_loader,
-              model=model,
-              criterion=criterion,
-              optimizer=optimizer,
-              epoch=epoch)
+        print(f'=== train epoch {epoch:03d}/{epochs} ====')
+        train(
+            train_loader=train_loader,
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer
+        )
 
         # Save checkpoint
         torch.save({
@@ -99,7 +99,7 @@ def main():
         }, checkpoint_filepath)
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer):
     """
     One epoch's training.
 
@@ -154,9 +154,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # Print status
         if i % print_freq == 0:
             print(
-                f'Epoch: [{epoch}][{i:04}/{len(train_loader)}]----'
-                f'Batch Time {batch_time.val:5.3f} ({batch_time.avg:5.3f})----'
-                f'Data Time {data_time.val:5.3f} ({data_time.avg:5.3f})----'
+                f'[{i:04}/{len(train_loader)}]----'
+                f'Batch Time {batch_time.val:6.2f} ({batch_time.avg:6.2f})----'
+                f'Data Time {data_time.val:6.3f} ({data_time.avg:6.3f})----'
                 f'Loss {losses.val:2.4f} ({losses.avg:2.4f})'
             )
     del lr_imgs, hr_imgs, sr_imgs  # free some memory since their histories may be stored
