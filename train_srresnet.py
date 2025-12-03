@@ -41,8 +41,13 @@ def main():
     global start_epoch, epoch, checkpoint
     print(f'running on {device}.')
     # Initialize model
-    model = SRResNet(large_kernel_size=large_kernel_size, small_kernel_size=small_kernel_size,
-                     n_channels=n_channels, n_blocks=n_blocks, scaling_factor=scaling_factor)
+    model = SRResNet(
+        large_kernel_size=large_kernel_size,
+        small_kernel_size=small_kernel_size,
+        n_channels=n_channels,
+        n_blocks=n_blocks,
+        scaling_factor=scaling_factor
+    )
     # Initialize the optimizer
     optimizer = torch.optim.Adam(params=filter(lambda p: p.requires_grad, model.parameters()),
                                  lr=lr)

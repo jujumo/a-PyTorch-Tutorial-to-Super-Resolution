@@ -1,18 +1,45 @@
 import torch
 from utils import *
 from PIL import Image, ImageDraw, ImageFont
+from models import Generator
+from models import SRResNet
+from train_srgan import *
+from train_srresnet import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Model checkpoints
-srgan_checkpoint = "./checkpoint_srgan.pth.tar"
 srresnet_checkpoint = "./checkpoint_srresnet.pth.tar"
 
-# Load models
-srresnet = torch.load(srresnet_checkpoint)['model'].to(device)
+# ----- Load SRResNet -----
+srresnet = SRResNet(
+    large_kernel_size=large_kernel_size,
+    small_kernel_size=small_kernel_size,
+    n_channels=n_channels,
+    n_blocks=n_blocks,
+    scaling_factor=scaling_factor,
+).to(device)
+
+srresnet_checkpoint = torch.load(srresnet_checkpoint, map_location=device)
+srresnet.load_state_dict(srresnet_checkpoint['model_state_dict'])
 srresnet.eval()
-srgan_generator = torch.load(srgan_checkpoint)['generator'].to(device)
-srgan_generator.eval()
+
+
+# ----- Load SRGAN Generator -----
+srgan_checkpoint = "./checkpoint_srgan.pth.tar"
+srgan_generator = Generator(
+    large_kernel_size=large_kernel_size_g,
+    small_kernel_size=small_kernel_size_g,
+    n_channels=n_channels_g,
+    n_blocks=n_blocks_g,
+    scaling_factor=scaling_factor,
+).to(device)
+
+srgan_ckpt = torch.load(srgan_checkpoint, map_location=device)
+start_epoch = srgan_ckpt.get("epoch", -1) + 1
+srgan_generator.load_state_dict(srgan_ckpt['generator'])
+
+print(f"\nLoaded checkpoint with epoch {start_epoch}.\n")
 
 
 def visualize_sr(img, halve=False):
@@ -67,30 +94,37 @@ def visualize_sr(img, halve=False):
 
     # Place bicubic-upsampled image
     grid_img.paste(bicubic_img, (margin, margin))
-    text_size = font.getsize("Bicubic")
-    draw.text(xy=[margin + bicubic_img.width / 2 - text_size[0] / 2, margin - text_size[1] - 5], text="Bicubic",
-              font=font,
+    bbox = font.getbbox("Bicubic")
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    draw.text(xy=[margin + bicubic_img.width / 2 - text_width / 2, margin - text_height - 5], text="Bicubic", font=font,
               fill='black')
 
     # Place SRResNet image
     grid_img.paste(sr_img_srresnet, (2 * margin + bicubic_img.width, margin))
-    text_size = font.getsize("SRResNet")
+    bbox = font.getbbox("SRResNet")
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
     draw.text(
-        xy=[2 * margin + bicubic_img.width + sr_img_srresnet.width / 2 - text_size[0] / 2, margin - text_size[1] - 5],
+        xy=[2 * margin + bicubic_img.width + sr_img_srresnet.width / 2 - text_width / 2, margin - text_height - 5],
         text="SRResNet", font=font, fill='black')
 
     # Place SRGAN image
     grid_img.paste(sr_img_srgan, (margin, 2 * margin + sr_img_srresnet.height))
-    text_size = font.getsize("SRGAN")
+    bbox = font.getbbox("SRGAN")
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
     draw.text(
-        xy=[margin + bicubic_img.width / 2 - text_size[0] / 2, 2 * margin + sr_img_srresnet.height - text_size[1] - 5],
+        xy=[margin + bicubic_img.width / 2 - text_width / 2, 2 * margin + sr_img_srresnet.height - text_height - 5],
         text="SRGAN", font=font, fill='black')
 
     # Place original HR image
     grid_img.paste(hr_img, (2 * margin + bicubic_img.width, 2 * margin + sr_img_srresnet.height))
-    text_size = font.getsize("Original HR")
-    draw.text(xy=[2 * margin + bicubic_img.width + sr_img_srresnet.width / 2 - text_size[0] / 2,
-                  2 * margin + sr_img_srresnet.height - text_size[1] - 1], text="Original HR", font=font, fill='black')
+    bbox = font.getbbox("Original HR")
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    draw.text(xy=[2 * margin + bicubic_img.width + sr_img_srresnet.width / 2 - text_width / 2,
+                  2 * margin + sr_img_srresnet.height - text_height - 1], text="Original HR", font=font, fill='black')
 
     # Display grid
     grid_img.show()
@@ -99,4 +133,4 @@ def visualize_sr(img, halve=False):
 
 
 if __name__ == '__main__':
-    grid_img = visualize_sr("/media/ssd/sr data/Set14/baboon.png")
+    grid_img = visualize_sr("./data/train2014/COCO_train2014_000000000009.jpg")
