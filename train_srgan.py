@@ -24,7 +24,7 @@ n_blocks_d = 8  # number of convolutional blocks
 fc_size_d = 1024  # size of the first fully connected layer
 
 # Learning parameters
-checkpoint = None  # path to model (SRGAN) checkpoint, None if none
+checkpoint_filepath = './checkpoint_srgan.pth.tar'  # path to model (SRGAN) checkpoint, None if none
 batch_size = 16  # batch size
 start_epoch = 0  # start at this epoch
 iterations = 2e5  # number of training iterations
@@ -48,40 +48,64 @@ def main():
     """
     global start_epoch, epoch, checkpoint, srresnet_checkpoint
 
-    # Initialize model or load checkpoint
-    if checkpoint is None:
-        # Generator
-        generator = Generator(large_kernel_size=large_kernel_size_g,
-                              small_kernel_size=small_kernel_size_g,
-                              n_channels=n_channels_g,
-                              n_blocks=n_blocks_g,
-                              scaling_factor=scaling_factor)
+    # ============================================================
+    # 1. Create models (common for both fresh start and checkpoint)
+    # ============================================================
 
+    generator = Generator(
+        large_kernel_size=large_kernel_size_g,
+        small_kernel_size=small_kernel_size_g,
+        n_channels=n_channels_g,
+        n_blocks=n_blocks_g,
+        scaling_factor=scaling_factor
+    ).to(device)
+
+    discriminator = Discriminator(
+        kernel_size=kernel_size_d,
+        n_channels=n_channels_d,
+        n_blocks=n_blocks_d,
+        fc_size=fc_size_d
+    ).to(device)
+
+    # ============================================================
+    # 2. Create optimizers (also common)
+    # ============================================================
+
+    optimizer_g = torch.optim.Adam(
+        params=list(filter(lambda p: p.requires_grad, generator.parameters())),
+        lr=lr
+    )
+
+    optimizer_d = torch.optim.Adam(
+        params=list(filter(lambda p: p.requires_grad, discriminator.parameters())),
+        lr=lr
+    )
+
+    # Initialize model or load checkpoint
+    if checkpoint_filepath is None or not os.path.isfile(checkpoint_filepath):
         # Initialize generator network with pretrained SRResNet
         generator.initialize_with_srresnet(srresnet_checkpoint=srresnet_checkpoint)
 
-        # Initialize generator's optimizer
-        optimizer_g = torch.optim.Adam(params=filter(lambda p: p.requires_grad, generator.parameters()),
-                                       lr=lr)
-
-        # Discriminator
-        discriminator = Discriminator(kernel_size=kernel_size_d,
-                                      n_channels=n_channels_d,
-                                      n_blocks=n_blocks_d,
-                                      fc_size=fc_size_d)
-
-        # Initialize discriminator's optimizer
-        optimizer_d = torch.optim.Adam(params=filter(lambda p: p.requires_grad, discriminator.parameters()),
-                                       lr=lr)
-
     else:
-        checkpoint = torch.load(checkpoint)
-        start_epoch = checkpoint['epoch'] + 1
-        generator = checkpoint['generator']
-        discriminator = checkpoint['discriminator']
-        optimizer_g = checkpoint['optimizer_g']
-        optimizer_d = checkpoint['optimizer_d']
-        print("\nLoaded checkpoint from epoch %d.\n" % (checkpoint['epoch'] + 1))
+        ckpt = torch.load(checkpoint_filepath, map_location=device)
+        start_epoch = ckpt.get("epoch", -1) + 1
+
+        # --- Load model weights ---
+        generator.load_state_dict(ckpt["generator"])
+        discriminator.load_state_dict(ckpt["discriminator"])
+
+        # --- Load optimizer states ---
+        optimizer_g.load_state_dict(ckpt["optimizer_g"])
+        optimizer_d.load_state_dict(ckpt["optimizer_d"])
+
+        # move optimizer tensors to correct device
+        for optim in (optimizer_g, optimizer_d):
+            for state in optim.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(device)
+
+        print(f"\nLoaded checkpoint from epoch {start_epoch}.\n")
 
     # Truncated VGG19 network to be used in the loss calculation
     truncated_vgg19 = TruncatedVGG19(i=vgg19_i, j=vgg19_j)
@@ -131,12 +155,14 @@ def main():
               epoch=epoch)
 
         # Save checkpoint
-        torch.save({'epoch': epoch,
-                    'generator': generator,
-                    'discriminator': discriminator,
-                    'optimizer_g': optimizer_g,
-                    'optimizer_d': optimizer_d},
-                   'checkpoint_srgan.pth.tar')
+        save_dict = {
+            'epoch': epoch,
+            'generator': generator.state_dict(),
+            'discriminator': discriminator.state_dict(),
+            'optimizer_g': optimizer_g.state_dict(),
+            'optimizer_d': optimizer_d.state_dict()
+        }
+        torch.save(save_dict, checkpoint_filepath)
 
 
 def train(train_loader, generator, discriminator, truncated_vgg19, content_loss_criterion, adversarial_loss_criterion,
